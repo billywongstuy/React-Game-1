@@ -4,6 +4,7 @@ import './index.css';
 
 //each square be can clicked on for more info
 
+
 class Square extends React.Component {
     constructor(props) {
 	super(props);
