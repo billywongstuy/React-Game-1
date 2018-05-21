@@ -1,6 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import './index.css';
+import upArrow from './uparrow.png'
+import leftArrow from './leftarrow.png'
+import rightArrow from './rightarrow.png'
+import downArrow from './downarrow.png'
 
 //each square be can clicked on for more info
 
@@ -12,10 +16,16 @@ class Square extends React.Component {
 
     render() {
 	return (
-		<button className={"square " + this.props.className} id={this.props.className}>
+		<button className={"square" + this.props.className}>
 		{this.props.value}
 	    </button>
 	)
+    }
+}
+
+class PatrolSquare extends Square {
+    constructor(props) {
+	super(props);
     }
 }
 
@@ -27,16 +37,16 @@ class Board extends React.Component {
 	}
     }
     
-    renderSquare(text,className) {
-	return <Square value={text} className={className}/>;
+    renderSquare(data,className) {
+	return <Square value={"bb"} className={className}/>;
     }
 
     renderRow(row,rowNum) {
-	//square + " " + rowNum + "," + squareNum
 	return row.map((square,squareNum) => {
+	    const className = square ? " " + square : ""
 	    return (
 		    <td key={squareNum} className="squareCell">
-		    {this.renderSquare("aa",square)}
+		    {this.renderSquare("aa",className)}
 		</td>
 	    );
 	});
@@ -48,7 +58,26 @@ class Board extends React.Component {
 	    squares[i] = this.state.squares[i].slice();
 	}
 
-	squares[this.props.currPos[1]][this.props.currPos[0]] = "fun";
+	//maybe hold more than just a string
+	squares[this.props.endPos[1]][this.props.endPos[0]] = "exit";
+	squares[this.props.currPos[1]][this.props.currPos[0]] = "player";
+	this.props.patrols.forEach(patrol => {
+	    squares[patrol["pos"][1]][patrol["pos"][0]] = "patrol";
+	});
+
+	/*
+	squares[this.props.endPos[1]][this.props.endPos[0]] = {
+	    type: "exit",
+	}
+	squares[this.props.currPos[1]][this.props.currPos[0]] = {
+	    type: "player",
+	}
+	this.props.patrols.forEach(patrol => {
+	    squares[patrol["pos"][1]][patrol["pos"][0]] = {
+		type: "patrol";
+	    }
+	});
+	*/
 	
 	const items = squares.map((row,rowNum) => {
 	    return (
@@ -76,19 +105,37 @@ class Controls extends React.Component {
 
     render() {
 	return (
-	    <div>
-		<button onClick={() => this.props.onClick("left")}>
-		Left
+		<div>
+		<table>
+		<tbody>
+		<tr>
+		<td></td>
+		<td>
+		<button onClick={() => this.props.onClick("up")} disabled={this.props.currPos[1] <= 0}>
+		<img src={upArrow} height="30px" width="30px" alt="Up"/>
 	    </button>
-		<button onClick={() => this.props.onClick("right")}>
-		Right
+	    </td>
+		<td></td>
+	    </tr>
+		<tr>
+		<td>
+		<button onClick={() => this.props.onClick("left")} disabled={this.props.currPos[0] <= 0}>
+		<img src={leftArrow} height="30px" width="30px" alt="Left"/>
 	    </button>
-		<button onClick={() => this.props.onClick("up")}>
-		Up
+		</td>
+		<td>
+		<button onClick={() => this.props.onClick("down")} disabled={this.props.currPos[1] >= this.props.size-1}>
+		<img src={downArrow} height="30px" width="30px" alt="Down"/>
 	    </button>
-		<button onClick={() => this.props.onClick("down")}>
-		Down
+	    </td>
+		<td>
+		<button onClick={() => this.props.onClick("right")} disabled={this.props.currPos[0] >= this.props.size-1}>
+		<img src={rightArrow} height="30px" width="30px" alt="Right"/>
 	    </button>
+	    </td>
+	    </tr>
+	    </tbody>
+	    </table>
 		</div>
 	)
     }
@@ -98,51 +145,106 @@ class Game extends React.Component {
     constructor(props) {
 	super(props);
 	this.state = {
-	    startPos: [chosenBoard["startX"],chosenBoard["startY"]],
-	    endPos: [chosenBoard["endX"],chosenBoard["endY"]],
-	    currPos: [chosenBoard["startX"],chosenBoard["startY"]],
+	    startPos: chosenBoard["startPos"],
+	    endPos: chosenBoard["endPos"],
+	    currPos: chosenBoard["startPos"],
+	    patrols: chosenBoard["patrols"],
 	}
     }
 
-
-    handleMovement(m) {
-	if (m === "left") {
-	    this.setState({
-		startPos: this.state.startPos,
-		endPos: this.state.endPos,
-		currPos: [Math.max(0,this.state.currPos[0]-1),this.state.currPos[1]]
-	    });
-	}
-	else if (m === "right") {
-	    this.setState({
-		startPos: this.state.startPos,
-		endPos: this.state.endPos,
-		currPos: [Math.min(this.state.currPos[0]+1,this.props.size-1),this.state.currPos[1]]
-	    });
-	}
-	else if (m === "up") {
-	    this.setState({
-		startPos: this.state.startPos,
-		endPos: this.state.endPos,
-		currPos: [this.state.currPos[0],Math.max(0,this.state.currPos[1]-1)]
-	    });
-	}
-	else if (m === "down") {
-	    this.setState({
-		startPos: this.state.startPos,
-		endPos: this.state.endPos,
-		currPos: [this.state.currPos[0],Math.min(this.state.currPos[1]+1,this.props.size-1)]
-	    });
-	}
+    handleClick(m) {
+	this.handlePlayerMovement(m);
+	this.handlePatrolMovement();
+	this.handleInteractions();
     }
     
+    handlePlayerMovement(m) {
+	var newPos = this.state.currPos.slice();
+	
+	if (m === 'left') {
+	    newPos = [Math.max(0,this.state.currPos[0]-1),this.state.currPos[1]];
+	}
+	else if (m === 'right') {
+	    newPos = [Math.min(this.state.currPos[0]+1,this.props.size-1),this.state.currPos[1]];
+	}
+	else if (m === 'up') {
+	    newPos = [this.state.currPos[0],Math.max(0,this.state.currPos[1]-1)]
+	}
+	else if (m === 'down') {
+	    newPos = [this.state.currPos[0],Math.min(this.state.currPos[1]+1,this.props.size-1)]
+	}
+
+	this.state.patrols.forEach(patrol => {
+	    if (patrol['pos'][0] === newPos[0] && patrol['pos'][1] === newPos[1]) {
+		newPos = this.state.currPos.slice();
+	    }
+	});
+	
+
+	this.setState({
+	    startPos: this.state.startPos,
+	    endPos: this.state.endPos,
+	    currPos: newPos,
+	    patrols: this.state.patrols,
+	});
+
+    }
+
+
+    handlePatrolMovement() {
+	this.state.patrols.forEach(patrol => {
+	    //turn left
+	    //
+	    //turn right
+	    //
+	    const rand = Math.random();
+	    if (rand < patrol["leftChance"]) {
+		patrol["direction"] = (patrol["direction"]+3) % 4;
+	    }
+	    else if (rand-patrol["leftChance"] < patrol["rightChance"]) {
+		patrol["direction"] = (patrol["direction"]+1)
+	    }
+	    else {
+		console.log(patrol["direction"]);
+		switch(patrol["direction"]) {
+		case 0:
+		    patrol["pos"][1] = Math.max(0,patrol["pos"][1]-1);
+		    break;
+		case 1:
+		    patrol["pos"][0] = Math.min(patrol["pos"][0]+1,this.props.size-1);
+		    break;
+		case 2:
+		    patrol["pos"][1] = Math.min(patrol["pos"][1]+1,this.props.size-1);
+		    break;
+		case 3:
+		    patrol["pos"][0] = Math.max(0,patrol["pos"][0]-1);
+		    break;
+		}
+	    }
+	    
+	});
+    }
+
+    handleInteractions() {
+
+    }
+    
+
+    //keypressing
+    
     render() {
+	if (this.state.currPos[0] === this.state.endPos[0] && this.state.currPos[1] === this.state.endPos[1]) {
+	    alert('You win!');
+	}
+	
 	return (
 		<div>
 		{chosen}
-		<Board size={this.props.size} currPos={this.state.currPos} />
+		<Board size={this.props.size} currPos={this.state.currPos} patrols={this.state.patrols} endPos={this.state.endPos} />
 		<Controls
-	    onClick={(m) => this.handleMovement(m)}
+	    onClick={(m) => this.handleClick(m)}
+	    currPos={this.state.currPos}
+	    size = {this.props.size}
 		/>
 		</div>
 	)
@@ -154,10 +256,17 @@ var chosen = Math.floor(Math.random()*1);
 //randomization needs to come with size as well
 var boards = {
     0: {
-	startX: 0,
-	startY: 0,
-	endX: 4,
-	endY: 4,
+	startPos: [0,0],
+	endPos: [4,4],
+	patrols: [
+	    {
+		direction: 0, //0 = north, 1 = east, 2 = south, 3 = west
+		pos: [2,3], //x,y
+		leftChance: 0.25, //chance to turn left
+		rightChance: 0.25, //chance to turn right
+		forwardChance: 0.5, //chance to move
+	    }
+	], //startpos, probabilities
     }
 }
 
