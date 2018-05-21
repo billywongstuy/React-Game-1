@@ -9,6 +9,7 @@ import downArrow from './downarrow.png'
 //each square be can clicked on for more info
 
 
+//generic one with no actions (used for styling?)
 class Square extends React.Component {
     constructor(props) {
 	super(props);
@@ -16,16 +17,41 @@ class Square extends React.Component {
 
     render() {
 	return (
-		<button className={"square" + this.props.className}>
-		{this.props.value}
+		<button className={this.props.className}>
 	    </button>
 	)
     }
 }
 
-class PatrolSquare extends Square {
+
+class PatrolSquare extends React.Component {
     constructor(props) {
 	super(props);
+    }
+
+    render() {
+	var patrolImage;
+	switch(this.props.data["direction"]) {
+	case 0:
+	    patrolImage = upArrow
+	    break;
+	case 1:
+	    patrolImage = rightArrow
+	    break;
+	case 2:
+	    patrolImage = downArrow
+	    break;
+	case 3:
+	    patrolImage = leftArrow
+	    break;
+	}
+
+	//styling needs to be done
+	return (
+		<button className={"square patrol"}>
+		<img src={patrolImage} height="100%" width="100%" alt="P" />
+	    </button>
+	)
     }
 }
 
@@ -37,16 +63,25 @@ class Board extends React.Component {
 	}
     }
     
-    renderSquare(data,className) {
-	return <Square value={"bb"} className={className}/>;
+    renderSquare(data) {
+	if (data["type"] === "player") {
+	    return <Square className={'square player'} />;
+	}
+	else if (data["type"] === "patrol") {
+	    return <PatrolSquare data={data}/>;
+	}
+	else if (data["type"] === "exit") {
+	    return <Square className={'square exit'} />;
+	}
+	return <Square className={'square'} />;
     }
 
     renderRow(row,rowNum) {
 	return row.map((square,squareNum) => {
-	    const className = square ? " " + square : ""
+	    const data = square ? square : {'type': null};
 	    return (
-		    <td key={squareNum} className="squareCell">
-		    {this.renderSquare("aa",className)}
+		    <td key={squareNum} className='squareCell'>
+		    {this.renderSquare(data)}
 		</td>
 	    );
 	});
@@ -58,14 +93,6 @@ class Board extends React.Component {
 	    squares[i] = this.state.squares[i].slice();
 	}
 
-	//maybe hold more than just a string
-	squares[this.props.endPos[1]][this.props.endPos[0]] = "exit";
-	squares[this.props.currPos[1]][this.props.currPos[0]] = "player";
-	this.props.patrols.forEach(patrol => {
-	    squares[patrol["pos"][1]][patrol["pos"][0]] = "patrol";
-	});
-
-	/*
 	squares[this.props.endPos[1]][this.props.endPos[0]] = {
 	    type: "exit",
 	}
@@ -74,14 +101,14 @@ class Board extends React.Component {
 	}
 	this.props.patrols.forEach(patrol => {
 	    squares[patrol["pos"][1]][patrol["pos"][0]] = {
-		type: "patrol";
+		type: "patrol",
+		direction: patrol["direction"],
 	    }
 	});
-	*/
 	
 	const items = squares.map((row,rowNum) => {
 	    return (
-		    <tr key={rowNum}>
+		    <tr key={rowNum} className='squareRow'>
 		    {this.renderRow(row,rowNum)}
 		</tr>
 	    )
@@ -96,7 +123,6 @@ class Board extends React.Component {
 	)
     }
 }
-
 
 class Controls extends React.Component {
     constructor(props) {
@@ -141,6 +167,8 @@ class Controls extends React.Component {
     }
 }
 
+//prevent wasted movements?
+//stop patrols from going into start and end
 class Game extends React.Component {
     constructor(props) {
 	super(props);
@@ -153,9 +181,9 @@ class Game extends React.Component {
     }
 
     handleClick(m) {
-	this.handlePlayerMovement(m);
+	const newPos = this.handlePlayerMovement(m);
 	this.handlePatrolMovement();
-	this.handleInteractions();
+	this.handleInteractions(newPos); //this is delayed and it doesn't work sometimes???
     }
     
     handlePlayerMovement(m) {
@@ -179,7 +207,6 @@ class Game extends React.Component {
 		newPos = this.state.currPos.slice();
 	    }
 	});
-	
 
 	this.setState({
 	    startPos: this.state.startPos,
@@ -188,24 +215,23 @@ class Game extends React.Component {
 	    patrols: this.state.patrols,
 	});
 
+	return newPos;
     }
 
 
+    //need to prevent from moving to exit space
     handlePatrolMovement() {
+	//this is direct modification -> should avoid this
+	//if no direct modification, have to pass patrols to interactions
 	this.state.patrols.forEach(patrol => {
-	    //turn left
-	    //
-	    //turn right
-	    //
 	    const rand = Math.random();
 	    if (rand < patrol["leftChance"]) {
 		patrol["direction"] = (patrol["direction"]+3) % 4;
 	    }
 	    else if (rand-patrol["leftChance"] < patrol["rightChance"]) {
-		patrol["direction"] = (patrol["direction"]+1)
+		patrol["direction"] = (patrol["direction"]+1) % 4;
 	    }
 	    else {
-		console.log(patrol["direction"]);
 		switch(patrol["direction"]) {
 		case 0:
 		    patrol["pos"][1] = Math.max(0,patrol["pos"][1]-1);
@@ -225,8 +251,39 @@ class Game extends React.Component {
 	});
     }
 
-    handleInteractions() {
+    handleInteractions(newPos) {
+	this.state.patrols.forEach(patrol => {
+	    //check if in front -> send back
+	    //if same space, send  back
+	    var reset = true;
 
+	    console.log(this.state.currPos);
+	    reset = (patrol["pos"][0] === newPos[0] && patrol["pos"][1] === newPos[1]);
+	    
+	    switch(patrol['direction']) {
+	    case 0:
+		reset = reset || (patrol['pos'][1] > 0 && patrol['pos'][0] === newPos[0] && patrol['pos'][1]-1 === newPos[1]) ;
+		break;
+	    case 1:
+		reset = reset || (patrol['pos'][0] < this.props.size-2 && patrol['pos'][0]+1 === newPos[0] && patrol['pos'][1] === newPos[1]);
+		break;
+	    case 2:
+		reset = reset || (patrol['pos'][1] < this.props.size-2 && patrol['pos'][0] === newPos[0] && patrol['pos'][1]+1 === newPos[1]);
+		break;
+	    case 3:
+		reset = reset || (patrol['pos'][0] > 0 && patrol['pos'][0]-1 === newPos[0] && patrol['pos'][1] === newPos[1]);
+	    }
+
+	    if (reset) {
+		this.setState({
+		    startPos: this.state.startPos,
+		    endPos: this.state.endPos,
+		    currPos: this.state.startPos,
+		    patrols: this.state.patrols,
+		});
+	    }
+	    
+	});
     }
     
 
@@ -262,9 +319,9 @@ var boards = {
 	    {
 		direction: 0, //0 = north, 1 = east, 2 = south, 3 = west
 		pos: [2,3], //x,y
-		leftChance: 0.25, //chance to turn left
-		rightChance: 0.25, //chance to turn right
-		forwardChance: 0.5, //chance to move
+		leftChance: 0.25, //chance to turn left -- 0 - 0.24
+		rightChance: 0.25, //chance to turn right -- 0.25-0.49
+		forwardChance: 0.5, //chance to move -- 0.5-1.00
 	    }
 	], //startpos, probabilities
     }
