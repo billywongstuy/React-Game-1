@@ -168,7 +168,6 @@ class Controls extends React.Component {
 }
 
 //prevent wasted movements?
-//stop patrols from going into start and end
 class Game extends React.Component {
     constructor(props) {
 	super(props);
@@ -182,8 +181,8 @@ class Game extends React.Component {
 
     handleClick(m) {
 	const newPos = this.handlePlayerMovement(m);
-	this.handlePatrolMovement();
-	this.handleInteractions(newPos); //this is delayed and it doesn't work sometimes???
+	const patrols = this.handlePatrolMovement();
+	this.handleInteractions(newPos,patrols); //this is delayed and it doesn't work sometimes???
     }
     
     handlePlayerMovement(m) {
@@ -209,10 +208,7 @@ class Game extends React.Component {
 	});
 
 	this.setState({
-	    startPos: this.state.startPos,
-	    endPos: this.state.endPos,
 	    currPos: newPos,
-	    patrols: this.state.patrols,
 	});
 
 	return newPos;
@@ -220,44 +216,69 @@ class Game extends React.Component {
 
 
     //need to prevent from moving to exit space
+    //need to prevent from moving to start space
+    //need to prevent patrols from colliding
+    //stop useless moves?
     handlePatrolMovement() {
 	//this is direct modification -> should avoid this
 	//if no direct modification, have to pass patrols to interactions
+	var patrols = [];
+	//push
 	this.state.patrols.forEach(patrol => {
 	    const rand = Math.random();
+	    var direction = patrol["direction"];
+	    var pos = patrol["pos"];
+	    
 	    if (rand < patrol["leftChance"]) {
-		patrol["direction"] = (patrol["direction"]+3) % 4;
+		//patrol["direction"] = (patrol["direction"]+3) % 4;
+		direction = (patrol["direction"]+3) % 4;
 	    }
 	    else if (rand-patrol["leftChance"] < patrol["rightChance"]) {
-		patrol["direction"] = (patrol["direction"]+1) % 4;
+		//patrol["direction"] = (patrol["direction"]+1) % 4;
+		direction = (patrol["direction"]+1) % 4;
 	    }
 	    else {
 		switch(patrol["direction"]) {
 		case 0:
-		    patrol["pos"][1] = Math.max(0,patrol["pos"][1]-1);
+		    //patrol["pos"][1] = Math.max(0,patrol["pos"][1]-1);
+		    pos[1] = Math.max(0,patrol["pos"][1]-1);
 		    break;
 		case 1:
-		    patrol["pos"][0] = Math.min(patrol["pos"][0]+1,this.props.size-1);
+		    //patrol["pos"][0] = Math.min(patrol["pos"][0]+1,this.props.size-1);
+		    pos[0] = Math.min(patrol["pos"][0]+1,this.props.size-1);
 		    break;
 		case 2:
-		    patrol["pos"][1] = Math.min(patrol["pos"][1]+1,this.props.size-1);
+		    //patrol["pos"][1] = Math.min(patrol["pos"][1]+1,this.props.size-1);
+		    pos[1] = Math.min(patrol["pos"][1]+1,this.props.size-1);
 		    break;
 		case 3:
-		    patrol["pos"][0] = Math.max(0,patrol["pos"][0]-1);
+		    //patrol["pos"][0] = Math.max(0,patrol["pos"][0]-1);
+		    pos[0] = Math.max(0,patrol["pos"][0]-1);
 		    break;
 		}
 	    }
 	    
+	    //check if it's on a space that it shouldn't be on
+	    patrols.push({
+		direction: direction,
+		pos: pos,
+		leftChance: patrol["leftChance"],
+		rightChance: patrol["rightChance"],
+		forwardChance: patrol["forwardChance"],
+	    });
+	    
 	});
+	this.setState({
+	    patrols: patrols,
+	})
+	return patrols;
     }
 
-    handleInteractions(newPos) {
-	this.state.patrols.forEach(patrol => {
-	    //check if in front -> send back
-	    //if same space, send  back
+    handleInteractions(newPos,patrols) {
+	patrols.forEach(patrol => {
+	    //clean up this code?
 	    var reset = true;
 
-	    console.log(this.state.currPos);
 	    reset = (patrol["pos"][0] === newPos[0] && patrol["pos"][1] === newPos[1]);
 	    
 	    switch(patrol['direction']) {
@@ -276,10 +297,7 @@ class Game extends React.Component {
 
 	    if (reset) {
 		this.setState({
-		    startPos: this.state.startPos,
-		    endPos: this.state.endPos,
 		    currPos: this.state.startPos,
-		    patrols: this.state.patrols,
 		});
 	    }
 	    
@@ -322,7 +340,16 @@ var boards = {
 		leftChance: 0.25, //chance to turn left -- 0 - 0.24
 		rightChance: 0.25, //chance to turn right -- 0.25-0.49
 		forwardChance: 0.5, //chance to move -- 0.5-1.00
+	    },
+	    /*
+	    {
+		direction: 1,
+		pos: [4,1],
+		leftChance: 0.2,
+		rightChance: 0.2,
+		forwardChance: 0.6,
 	    }
+	    */
 	], //startpos, probabilities
     }
 }
