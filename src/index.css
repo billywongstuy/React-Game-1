@@ -4,6 +4,10 @@ body {
     font-family: sans-serif;
 }
 
+button {
+    border: 1px solid black;
+}
+
 button:disabled {
     background: rgb(128,128,128);
 }

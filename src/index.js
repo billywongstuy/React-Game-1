@@ -10,6 +10,7 @@ import downArrow from './downarrow.png'
 
 
 //generic one with no actions (used for styling?)
+/*
 class Square extends React.Component {
     constructor(props) {
 	super(props);
@@ -17,11 +18,18 @@ class Square extends React.Component {
 
     render() {
 	return (
-		<button className={this.props.className}>
-	    </button>
+		
 	)
     }
 }
+*/
+
+var Square = function(props) {
+    return (
+	<button className={props.className}>
+	    </button>
+    );
+};
 
 
 class PatrolSquare extends React.Component {
@@ -43,6 +51,8 @@ class PatrolSquare extends React.Component {
 	    break;
 	case 3:
 	    patrolImage = leftArrow
+	    break;
+	default:
 	    break;
 	}
 
@@ -214,57 +224,56 @@ class Game extends React.Component {
 	return newPos;
     }
 
-
-    //need to prevent from moving to exit space
-    //need to prevent from moving to start space
     //need to prevent patrols from colliding
     //stop useless moves?
     handlePatrolMovement() {
-	//this is direct modification -> should avoid this
-	//if no direct modification, have to pass patrols to interactions
 	var patrols = [];
-	//push
 	this.state.patrols.forEach(patrol => {
 	    const rand = Math.random();
 	    var direction = patrol["direction"];
-	    var pos = patrol["pos"];
+	    var pos = patrol["pos"].slice();
 	    
 	    if (rand < patrol["leftChance"]) {
-		//patrol["direction"] = (patrol["direction"]+3) % 4;
 		direction = (patrol["direction"]+3) % 4;
 	    }
 	    else if (rand-patrol["leftChance"] < patrol["rightChance"]) {
-		//patrol["direction"] = (patrol["direction"]+1) % 4;
 		direction = (patrol["direction"]+1) % 4;
 	    }
-	    else {
+	    else if (rand-patrol["leftChance"]-patrol["rightChance"] < patrol["forwardChance"]) {
 		switch(patrol["direction"]) {
 		case 0:
-		    //patrol["pos"][1] = Math.max(0,patrol["pos"][1]-1);
 		    pos[1] = Math.max(0,patrol["pos"][1]-1);
 		    break;
 		case 1:
-		    //patrol["pos"][0] = Math.min(patrol["pos"][0]+1,this.props.size-1);
 		    pos[0] = Math.min(patrol["pos"][0]+1,this.props.size-1);
 		    break;
 		case 2:
-		    //patrol["pos"][1] = Math.min(patrol["pos"][1]+1,this.props.size-1);
 		    pos[1] = Math.min(patrol["pos"][1]+1,this.props.size-1);
 		    break;
 		case 3:
-		    //patrol["pos"][0] = Math.max(0,patrol["pos"][0]-1);
 		    pos[0] = Math.max(0,patrol["pos"][0]-1);
+		    break;
+		default:
 		    break;
 		}
 	    }
+	    var startPos = this.state.startPos;
+	    var endPos = this.state.endPos;
 	    
-	    //check if it's on a space that it shouldn't be on
+	    if ((pos[0] === startPos[0] && pos[1] === startPos[1]) || (pos[0] === endPos[0] && pos[1] === endPos[1])) {
+		pos = patrol["pos"];
+	    }
+	    
+	    //patrol collision
+	    //who gets priority for movement - by id?
+	    
 	    patrols.push({
 		direction: direction,
 		pos: pos,
 		leftChance: patrol["leftChance"],
 		rightChance: patrol["rightChance"],
 		forwardChance: patrol["forwardChance"],
+		id: patrol["id"],
 	    });
 	    
 	});
@@ -286,15 +295,20 @@ class Game extends React.Component {
 		reset = reset || (patrol['pos'][1] > 0 && patrol['pos'][0] === newPos[0] && patrol['pos'][1]-1 === newPos[1]) ;
 		break;
 	    case 1:
-		reset = reset || (patrol['pos'][0] < this.props.size-2 && patrol['pos'][0]+1 === newPos[0] && patrol['pos'][1] === newPos[1]);
+		reset = reset || (patrol['pos'][0] < this.props.size-1 && patrol['pos'][0]+1 === newPos[0] && patrol['pos'][1] === newPos[1]);
 		break;
 	    case 2:
-		reset = reset || (patrol['pos'][1] < this.props.size-2 && patrol['pos'][0] === newPos[0] && patrol['pos'][1]+1 === newPos[1]);
+		reset = reset || (patrol['pos'][1] < this.props.size-1 && patrol['pos'][0] === newPos[0] && patrol['pos'][1]+1 === newPos[1]);
 		break;
 	    case 3:
 		reset = reset || (patrol['pos'][0] > 0 && patrol['pos'][0]-1 === newPos[0] && patrol['pos'][1] === newPos[1]);
+		break;
+	    default:
+		break;
 	    }
 
+	    reset = reset && !((newPos[0] === this.state.startPos[0] && newPos[1] === this.state.startPos[1]) || (newPos[0] === this.state.endPos[0] && newPos[1] === this.state.endPos[1]))
+	    
 	    if (reset) {
 		this.setState({
 		    currPos: this.state.startPos,
@@ -306,6 +320,11 @@ class Game extends React.Component {
     
 
     //keypressing
+
+    handleKeyDown(event) {
+	console.log(event.key);
+	//handle the key presses. why doesn't the event trigger if not clicked into the div?
+    };
     
     render() {
 	if (this.state.currPos[0] === this.state.endPos[0] && this.state.currPos[1] === this.state.endPos[1]) {
@@ -313,7 +332,7 @@ class Game extends React.Component {
 	}
 	
 	return (
-		<div>
+		<div onKeyDown={e => this.handleKeyDown(e)}>
 		{chosen}
 		<Board size={this.props.size} currPos={this.state.currPos} patrols={this.state.patrols} endPos={this.state.endPos} />
 		<Controls
@@ -340,16 +359,18 @@ var boards = {
 		leftChance: 0.25, //chance to turn left -- 0 - 0.24
 		rightChance: 0.25, //chance to turn right -- 0.25-0.49
 		forwardChance: 0.5, //chance to move -- 0.5-1.00
+		id: 0,
 	    },
-	    /*
+	    
 	    {
-		direction: 1,
-		pos: [4,1],
-		leftChance: 0.2,
-		rightChance: 0.2,
+		direction: 2,
+		pos: [4,3],
+		leftChance: 0.2, //0.2
+		rightChance: 0.2, //0.2
 		forwardChance: 0.6,
+		id: 1,
 	    }
-	    */
+	    
 	], //startpos, probabilities
     }
 }
